@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>GoTube - YouTube Clone (with API)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22 fill=%22red%22>▶</text></svg>">
+  <style>
+    .video-thumb {
+      aspect-ratio: 16 / 9;
+      background-color: #000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-size: 2rem;
+    }
+  </style>
+</head>
+<body class="bg-gray-100">
+
+  <!-- Header -->
+  <header class="bg-white shadow sticky top-0 z-10">
+    <div class="container mx-auto px-4 py-3 flex items-center">
+      <h1 class="text-2xl font-bold text-red-600 mr-6">GoTube</h1>
+      
+      <div class="flex-1 max-w-2xl">
+        <div class="relative">
+          <input
+            type="text"
+            id="search-input"
+            placeholder="Search videos..."
+            class="w-full px-4 py-2 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-red-500"
+            value="javascript"
+          />
+          <button id="search-btn" class="absolute right-2 top-1/2 transform -translate-y-1/2 bg-gray-200 p-2 rounded-full">
+            🔍
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="container mx-auto px-4 py-6">
+    <div id="loading" class="hidden text-center py-8 text-gray-500">Loading...</div>
+    <div id="videos-container" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+      <!-- Video cards will be inserted here -->
+    </div>
+    <div id="error" class="hidden text-center py-8 text-red-500"></div>
+  </main>
+
+  <script>
+    const searchInput = document.getElementById('search-input');
+    const searchBtn = document.getElementById('search-btn');
+    const videosContainer = document.getElementById('videos-container');
+    const loadingEl = document.getElementById('loading');
+    const errorEl = document.getElementById('error');
+
+    async function searchVideos(query) {
+      if (!query.trim()) return;
+      
+      loadingEl.classList.remove('hidden');
+      videosContainer.innerHTML = '';
+      errorEl.classList.add('hidden');
+
+      try {
+        const response = await fetch('/.netlify/functions/search', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ q: query })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok || data.error) {
+          throw new Error(data.error || 'Failed to fetch videos');
+        }
+
+        renderVideos(data.items);
+      } catch (err) {
+        console.error(err);
+        errorEl.textContent = 'Failed to load videos. Please try again.';
+        errorEl.classList.remove('hidden');
+      } finally {
+        loadingEl.classList.add('hidden');
+      }
+    }
+
+    function renderVideos(items) {
+      if (!items || items.length === 0) {
+        videosContainer.innerHTML = '<p class="col-span-full text-center text-gray-500">No videos found.</p>';
+        return;
+      }
+
+      videosContainer.innerHTML = items.map(item => {
+        const snippet = item.snippet;
+        const videoId = item.id.videoId;
+        const thumbnail = snippet.thumbnails?.medium?.url || snippet.thumbnails?.default?.url;
+        const title = snippet.title || 'Untitled';
+        const channel = snippet.channelTitle || 'Unknown Channel';
+        const publishedAt = new Date(snippet.publishedAt);
+        const timeAgo = getTimeAgo(publishedAt);
+
+        return `
+          <div class="bg-white rounded-lg overflow-hidden shadow hover:shadow-lg transition-shadow cursor-pointer"
+               onclick="window.open('https://www.youtube.com/watch?v=${videoId}', '_blank')">
+            <img src="${thumbnail}" alt="${title}" class="w-full aspect-video object-cover" />
+            <div class="p-3">
+              <h3 class="font-semibold line-clamp-2">${title}</h3>
+              <p class="text-gray-600 text-sm mt-1">${channel}</p>
+              <p class="text-gray-500 text-xs mt-1">${timeAgo}</p>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function getTimeAgo(date) {
+      const seconds = Math.floor((new Date() - date) / 1000);
+      let interval = seconds / 31536000;
+      if (interval > 1) return Math.floor(interval) + " years ago";
+      interval = seconds / 2592000;
+      if (interval > 1) return Math.floor(interval) + " months ago";
+      interval = seconds / 86400;
+      if (interval > 1) return Math.floor(interval) + " days ago";
+      interval = seconds / 3600;
+      if (interval > 1) return Math.floor(interval) + " hours ago";
+      interval = seconds / 60;
+      if (interval > 1) return Math.floor(interval) + " minutes ago";
+      return Math.floor(seconds) + " seconds ago";
+    }
+
+    // Event listeners
+    searchBtn.addEventListener('click', () => {
+      searchVideos(searchInput.value);
+    });
+
+    searchInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') searchVideos(searchInput.value);
+    });
+
+    // Initial search
+    searchVideos('javascript');
+  </script>
+</body>
+</html>
